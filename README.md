@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/33965591/README.md)
 # VKA Dienstplan
 
 Web-App zur Einsatzplanung für den Verband der Krankentransporte Albis (VKA). Ermöglicht das Erstellen und Verwalten von Anlässen, Personen, Posten und Schichtzuteilungen — live synchronisiert über alle Geräte.
@@ -50,8 +49,8 @@ Posten sind die Stationen oder Aufgabenbereiche des Anlasses (z.B. «Sanitätspo
 1. Tab **Personen** → **+ Neue Person**
 2. Felder ausfüllen:
    - **Name**
-   - **Rang** — z.B. VK, Gruppenführer, Obergruppenführer
-   - **Rolle** — z.B. EL, Stv
+   - **Rang** — z.B. RS, San, Gruppenführer
+   - **Rolle** — z.B. Fahrer, Sanitäter
    - **Funkrufname** — wird im Funk-Modus statt des Postens angezeigt
    - **Farbe** — zur visuellen Unterscheidung im Plan
 3. Speichern
@@ -85,7 +84,7 @@ Der Funk-Modus steuert, was im Plan angezeigt wird:
 
 | Modus | Anzeige |
 |---|---|
-| Posten | Postenname (z.B. «Kreuzung») |
+| Posten | Postenname (z.B. «Sanitätsposten Ost») |
 | Funk | Funkrufname der eingeteilten Person |
 
 Der Modus wird pro Anlass gesetzt und kann beim Erstellen oder Bearbeiten eines Anlasses geändert werden.
