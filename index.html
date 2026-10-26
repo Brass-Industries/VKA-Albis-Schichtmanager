@@ -521,13 +521,13 @@ function subscribeAnlass(id){
 }
 
 // ── Anlass Selection ──────────────────────────────────────────────────────
-function selectAnlass(id){
+function selectAnlass(id, initialTab='dp'){
   state.anlassId = id;
   state.anlassInfo = id ? state.anlaesse.find(a=>a.id===id) : null;
   state.hidePast = false;
   subscribeAnlass(id);
   updateHeader(); renderAnlaesse(); renderSchichten(); renderPersonen(); renderPosten(); renderAuswertung();
-  if(id) setTab('dp', document.getElementById('tab-dp')); // beim Öffnen → Plan
+  if(id) setTab(initialTab, document.getElementById('tab-'+initialTab));
 }
 function updateHeader(){
   document.getElementById('hdr-anlass').textContent =
@@ -872,7 +872,7 @@ async function saveAnlass(){
   setSyncDot(true);
   const {data,error} = await sb.from('anlaesse').insert({name,datum,funk_modus:funkModus}).select().single();
   setSyncDot(false); closeModal();
-  if(!error && data) setTimeout(()=>{ selectAnlass(data.id); setTab('po',document.getElementById('tab-po')); },300);
+  if(!error && data) setTimeout(()=>selectAnlass(data.id,'po'),300);
 }
 
 // ── Copy Anlass ───────────────────────────────────────────────────────────
