@@ -251,13 +251,14 @@ a.maps-link:hover{text-decoration:underline}
   <div class="hdr">
     <div class="hdr-top">
       <div class="logo">VKA Dienstplan<small id="hdr-anlass">Kein Anlass gewählt</small></div>
+      <span id="hdr-date" style="color:#777;font-size:.72rem;font-weight:500;white-space:nowrap"></span>
       <span class="sync-dot spin" id="syncDot" title="Verbinde…"></span>
     </div>
     <div class="tabs">
       <button class="tab on" id="tab-an" onclick="setTab('an',this)">📅 Anlässe</button>
-      <button class="tab" id="tab-dp" onclick="setTab('dp',this)">Plan</button>
-      <button class="tab" id="tab-pe" onclick="setTab('pe',this)">Personen</button>
       <button class="tab" id="tab-po" onclick="setTab('po',this)">Posten</button>
+      <button class="tab" id="tab-pe" onclick="setTab('pe',this)">Personen</button>
+      <button class="tab" id="tab-dp" onclick="setTab('dp',this)">Plan</button>
       <button class="tab" id="tab-au" onclick="setTab('au',this)">Übersicht</button>
     </div>
   </div>
@@ -381,6 +382,10 @@ function startApp(){
   pwScreen.style.display = 'none';
   appEl.style.display = 'flex';
   appEl.removeAttribute('hidden');
+  // Datum oben rechts
+  const d = new Date();
+  const opts = {weekday:'short',day:'numeric',month:'short',year:'numeric'};
+  document.getElementById('hdr-date').textContent = d.toLocaleDateString('de-CH',opts);
   setTimeout(initFirebase, 50);
 }
 
@@ -522,7 +527,7 @@ function selectAnlass(id){
   state.hidePast = false;
   subscribeAnlass(id);
   updateHeader(); renderAnlaesse(); renderSchichten(); renderPersonen(); renderPosten(); renderAuswertung();
-  if(id) setTab('dp', document.getElementById('tab-dp'));
+  if(id) setTab('dp', document.getElementById('tab-dp')); // beim Öffnen → Plan
 }
 function updateHeader(){
   document.getElementById('hdr-anlass').textContent =
@@ -867,7 +872,7 @@ async function saveAnlass(){
   setSyncDot(true);
   const {data,error} = await sb.from('anlaesse').insert({name,datum,funk_modus:funkModus}).select().single();
   setSyncDot(false); closeModal();
-  if(!error && data) setTimeout(()=>selectAnlass(data.id),300);
+  if(!error && data) setTimeout(()=>{ selectAnlass(data.id); setTab('po',document.getElementById('tab-po')); },300);
 }
 
 // ── Copy Anlass ───────────────────────────────────────────────────────────
