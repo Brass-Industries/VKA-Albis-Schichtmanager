@@ -404,9 +404,6 @@ function initFirebase(){
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
 
-    // Offline-Persistenz aktivieren (Daten werden gecacht)
-    db.ref('anlaesse').keepSynced(true);
-
     // Verbindungsstatus überwachen
     db.ref('.info/connected').on('value', snap => {
       const dot = document.getElementById('syncDot');
