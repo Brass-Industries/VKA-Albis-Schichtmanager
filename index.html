@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>VKA Dienstplan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* ── FIREBASE CONFIG & PASSWORT (HIER ANPASSEN) ──────────────────────────────
+   Schritt 1: firebaseConfig unten in <script> ausfüllen
+   Schritt 2: APP_PASSWORT setzen
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root{
+  --bg:#F2EFE8;--surface:#FFFFFF;--surface2:#EAE6DF;
+  --fg:#1A1713;--fg2:#4A433B;--fg3:#9C9188;
+  --border:#D8D2C8;--accent:#D96500;--accent-l:#FFF0E0;
+  --ok:#2E7D32;--ok-l:#E8F5E9;--danger:#C62828;--danger-l:#FFEBEE;
+  --r:10px;--rs:6px;--sh:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  color-scheme:light;
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#111010;--surface:#1C1B18;--surface2:#252420;
+  --fg:#F0EDE8;--fg2:#AAA49A;--fg3:#5A554E;
+  --border:#38352E;--accent:#F08020;--accent-l:#2A1C08;
+  --ok:#4CAF50;--ok-l:#1B2E1C;--danger:#EF5350;--danger-l:#2C1212;
+  color-scheme:dark;
+}}
+:root[data-theme=dark]{
+  --bg:#111010;--surface:#1C1B18;--surface2:#252420;
+  --fg:#F0EDE8;--fg2:#AAA49A;--fg3:#5A554E;
+  --border:#38352E;--accent:#F08020;--accent-l:#2A1C08;
+  --ok:#4CAF50;--ok-l:#1B2E1C;--danger:#EF5350;--danger-l:#2C1212;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+
+/* ── PASSWORD SCREEN ──────────────────────────────────────────────────────── */
+#pw-screen{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);z-index:999;padding:24px;
+}
+.pw-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:32px;width:100%;max-width:380px;box-shadow:0 4px 24px rgba(0,0,0,.12)}
+.pw-logo{font-size:1.4rem;font-weight:800;color:var(--accent);margin-bottom:6px;letter-spacing:.02em}
+.pw-sub{font-size:.85rem;color:var(--fg3);margin-bottom:28px}
+.pw-label{display:block;font-size:.75rem;font-weight:700;color:var(--fg2);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.pw-input{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:var(--rs);
+  background:var(--surface2);color:var(--fg);font-family:inherit;font-size:1rem;
+  outline:none;transition:border-color .15s}
+.pw-input:focus{border-color:var(--accent)}
+.pw-err{font-size:.82rem;color:var(--danger);margin-top:8px;min-height:18px}
+.pw-btn{width:100%;margin-top:16px;padding:13px;background:var(--accent);color:#fff;
+  border:none;border-radius:var(--rs);font-family:inherit;font-size:1rem;font-weight:700;
+  cursor:pointer;transition:opacity .15s}
+.pw-btn:hover{opacity:.9}
+.pw-offline{font-size:.75rem;color:var(--fg3);text-align:center;margin-top:16px}
+
+/* ── MAIN APP ─────────────────────────────────────────────────────────────── */
+#app{display:flex;flex-direction:column;height:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0}
+.hdr{background:#19160F;border-bottom:3px solid var(--accent);
+  margin-inline:max(-16px,calc(-1*env(safe-area-inset-left,0px))) max(-16px,calc(-1*env(safe-area-inset-right,0px)));
+  padding:14px max(16px,env(safe-area-inset-left,0px)) 0;
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:100}
+.hdr-top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.logo{font-size:1.1rem;font-weight:700;color:var(--accent);flex:1;letter-spacing:.02em;min-width:0}
+.logo small{color:#777;font-weight:400;font-size:.72rem;display:block;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#4CAF50;flex-shrink:0}
+.sync-dot.spin{background:#F08020;animation:pulse 1s infinite}
+.sync-dot.offline{background:#888}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.tabs{display:flex}
+.tab{flex:1;padding:9px 2px;background:none;border:none;border-bottom:2px solid transparent;
+  color:#777;font-size:.75rem;font-weight:600;font-family:inherit;cursor:pointer;
+  text-align:center;transition:all .15s;white-space:nowrap}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.content{flex:1;padding-block:16px;padding-bottom:88px;overflow-y:auto}
+.view{display:none}.view.on{display:block}
+
+/* Anlass cards */
+.an-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 16px;box-shadow:var(--sh);display:flex;align-items:center;
+  gap:12px;position:relative;flex-wrap:wrap}
+.an-card.active{border-color:var(--accent);background:var(--accent-l)}
+.an-date{min-width:50px;text-align:center;background:var(--surface2);color:var(--fg2);
+  border-radius:var(--rs);padding:5px 8px;flex-shrink:0}
+.an-day{font-size:1.4rem;font-weight:800;display:block;line-height:1;color:var(--fg)}
+.an-info{flex:1;min-width:120px}
+.an-name{font-weight:700;font-size:1rem}
+.an-meta{font-size:.8rem;color:var(--fg2);margin-top:2px}
+.an-badge{background:var(--accent);color:#fff;font-size:.65rem;font-weight:800;
+  border-radius:4px;padding:2px 6px;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+.an-btns{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.an-go{padding:6px 10px;background:var(--accent);color:#fff;border:none;
+  border-radius:var(--rs);font-family:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+
+/* Schicht */
+.scard{background:var(--surface);border:1px solid var(--border);border-left:5px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+.scard.ok{border-left-color:var(--ok)}.scard.warn{border-left-color:var(--danger)}
+.scard-top{display:flex;align-items:center;gap:10px;padding:10px 12px 6px}
+.scard-posten{font-weight:700;font-size:1rem;flex:1;min-width:0}
+.scard-req{font-size:.75rem;font-weight:700;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.scard-req.ok{background:var(--ok-l);color:var(--ok)}.scard-req.warn{background:var(--danger-l);color:var(--danger)}
+.scard-times{display:flex;align-items:center;gap:8px;padding:0 12px 8px}
+.tinput{flex:1;min-width:0;padding:8px 6px;border:1px solid var(--border);border-radius:var(--rs);
+  background:var(--surface2);color:var(--fg);font-family:inherit;font-size:.9rem;text-align:center}
+.sep{color:var(--fg3);font-size:.85rem;flex-shrink:0}
+.scard-persons{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 12px 10px}
+.pchip{display:inline-flex;align-items:center;gap:5px;padding:4px 4px 4px 8px;
+  border-radius:20px;font-size:.8rem;font-weight:600;border:1px solid;white-space:nowrap}
+.pchip.below{text-decoration:underline dotted}
+.pchip-rank{font-size:.7rem;font-weight:700;opacity:.75;background:rgba(0,0,0,.12);
+  border-radius:4px;padding:1px 4px}
+.pchip-rm{background:none;border:none;cursor:pointer;font-size:.9rem;
+  padding:0 3px;color:inherit;opacity:.5}.pchip-rm:hover{opacity:1}
+.add-person-sel{padding:4px 8px;border:1px dashed var(--border);border-radius:20px;
+  background:none;color:var(--fg2);font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
+
+/* Toolbar */
+.toolbar{display:flex;justify-content:flex-end;margin-bottom:10px}
+.tbtn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--rs);font-family:inherit;
+  font-size:.8rem;font-weight:600;color:var(--fg2);cursor:pointer}
+.tbtn.on{color:var(--accent);border-color:var(--accent);background:var(--accent-l)}
+.ibtn{background:none;border:none;padding:5px;border-radius:var(--rs);color:var(--fg3);
+  cursor:pointer;font-size:1rem;display:flex;align-items:center;transition:color .15s}
+.ibtn:hover{color:var(--danger)}
+.ibtn-e{background:none;border:none;padding:5px;border-radius:var(--rs);color:var(--fg3);
+  cursor:pointer;font-size:1rem;display:flex;align-items:center;transition:color .15s}
+.ibtn-e:hover{color:var(--accent)}
+.add-btn{width:100%;margin-top:12px;padding:13px;background:var(--accent-l);
+  border:2px dashed var(--accent);border-radius:var(--r);color:var(--accent);
+  font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s,color .15s}
+.add-btn:hover{background:var(--accent);color:#fff}
+
+/* List items */
+.list-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh)}
+.rank-badge{padding:3px 8px;border-radius:4px;font-size:.75rem;font-weight:700;
+  letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
+.item-name{flex:1;font-weight:600;font-size:.95rem;min-width:0}
+.item-sub{font-size:.8rem;color:var(--fg2);margin-top:3px;display:flex;
+  gap:10px;flex-wrap:wrap;align-items:center}
+
+/* Auswertung */
+.au-toggle{display:flex;gap:4px;margin-bottom:14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r);padding:4px}
+.au-tab{flex:1;padding:8px;border:none;border-radius:var(--rs);background:none;
+  color:var(--fg2);font-family:inherit;font-size:.875rem;font-weight:600;
+  cursor:pointer;transition:all .15s}
+.au-tab.on{background:var(--surface);color:var(--accent);box-shadow:var(--sh)}
+.au-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.au-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  overflow:hidden;box-shadow:var(--sh)}
+.au-head{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);flex-wrap:wrap}
+.au-name{font-weight:700;font-size:.95rem}
+.au-rufname{font-size:.8rem;font-weight:700;padding:2px 8px;border-radius:10px;
+  background:var(--accent-l);color:var(--accent);white-space:nowrap;flex-shrink:0}
+.au-body{padding:8px 14px}
+.au-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;
+  border-bottom:1px solid var(--border);font-size:.875rem}.au-row:last-child{border-bottom:none}
+.au-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.au-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+  border-radius:12px;font-size:.75rem;font-weight:600}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
+  display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:580px){.overlay{align-items:center}}
+.modal{background:var(--surface);width:100%;max-width:480px;
+  border-radius:var(--r) var(--r) 0 0;padding:24px;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 -4px 24px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+@media(min-width:580px){.modal{border-radius:var(--r)}}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:18px;color:var(--accent)}
+.fg{margin-bottom:14px}
+.flabel{display:block;font-size:.75rem;font-weight:700;color:var(--fg2);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.finput,.fselect{width:100%;padding:10px 12px;border:1px solid var(--border);
+  border-radius:var(--rs);background:var(--surface2);color:var(--fg);
+  font-family:inherit;font-size:.95rem}
+.frow{display:flex;gap:10px}.frow>div{flex:1;min-width:0}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:4px}
+.popt{padding:8px 6px;border:2px solid var(--border);border-radius:var(--rs);
+  background:var(--surface2);color:var(--fg);font-family:inherit;font-size:.875rem;
+  font-weight:500;cursor:pointer;text-align:center;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;transition:all .15s}
+.popt.on{border-color:var(--accent);background:var(--accent-l);color:var(--accent)}
+.row-btns{display:flex;gap:8px;margin-top:20px}
+.btn{flex:1;padding:12px;border:none;border-radius:var(--rs);
+  font-family:inherit;font-size:.95rem;font-weight:700;cursor:pointer}
+.btn-p{background:var(--accent);color:#fff}.btn-s{background:var(--surface2);color:var(--fg)}
+.step{display:none}.step.on{display:block}
+.step-head{font-size:.8rem;font-weight:700;color:var(--fg3);text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:14px}
+.chk-row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+  border:1px solid var(--border);border-radius:var(--rs);background:var(--surface2);
+  margin-bottom:8px;cursor:pointer}
+.chk-row input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:1px;
+  cursor:pointer;accent-color:var(--accent)}
+.chk-lbl{font-size:.9rem;font-weight:600;cursor:pointer}
+.chk-sub{font-size:.78rem;color:var(--fg2);margin-top:2px}
+.empty{text-align:center;padding:56px 16px;color:var(--fg3)}
+.empty-ico{font-size:3rem;margin-bottom:12px}
+.empty-txt{font-size:.95rem;line-height:1.6}
+.no-ev-btn{margin-top:16px;padding:10px 20px;background:var(--accent);color:#fff;
+  border:none;border-radius:var(--rs);font-family:inherit;font-size:.9rem;
+  font-weight:700;cursor:pointer}
+.rank-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+  gap:6px;margin-bottom:8px}
+.rank-opt{padding:7px 8px;border:2px solid var(--border);border-radius:var(--rs);
+  background:var(--surface2);color:var(--fg);font-family:inherit;font-size:.8rem;
+  font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;
+  gap:7px;transition:all .15s;white-space:nowrap;overflow:hidden}
+.rank-opt.on{border-color:var(--accent);background:var(--accent-l);color:var(--accent)}
+.rank-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.card-list{display:flex;flex-direction:column;gap:10px}
+a.maps-link{color:var(--accent);text-decoration:none;font-size:.8rem;
+  display:inline-flex;align-items:center;gap:3px}
+a.maps-link:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<!-- ── PASSWORT-SCREEN ──────────────────────────────────────────────────── -->
+<div id="pw-screen">
+  <div class="pw-box">
+    <div class="pw-logo">VKA Dienstplan</div>
+    <div class="pw-sub">Verkehrskaderverein Albis · Bitte Passwort eingeben</div>
+    <label class="pw-label" for="pw-inp">Passwort</label>
+    <input class="pw-input" id="pw-inp" type="password" placeholder="••••••••"
+      autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="pw-err" id="pw-err"></div>
+    <button class="pw-btn" onclick="doLogin()">Anmelden →</button>
+    <div class="pw-offline">🔒 Passwort wird lokal gespeichert</div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ────────────────────────────────────────────────────────── -->
+<div id="app" hidden>
+  <div class="hdr">
+    <div class="hdr-top">
+      <div class="logo">VKA Dienstplan<small id="hdr-anlass">Kein Anlass gewählt</small></div>
+      <span class="sync-dot spin" id="syncDot" title="Verbinde…"></span>
+    </div>
+    <div class="tabs">
+      <button class="tab on" id="tab-an" onclick="setTab('an',this)">📅 Anlässe</button>
+      <button class="tab" id="tab-dp" onclick="setTab('dp',this)">Plan</button>
+      <button class="tab" id="tab-pe" onclick="setTab('pe',this)">Personen</button>
+      <button class="tab" id="tab-po" onclick="setTab('po',this)">Posten</button>
+      <button class="tab" id="tab-au" onclick="setTab('au',this)">Übersicht</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- ANLÄSSE -->
+    <div class="view on" id="v-an">
+      <div class="card-list" id="anlaesse-list"></div>
+      <button class="add-btn" onclick="openAddAnlass()">＋ Anlass hinzufügen</button>
+    </div>
+
+    <!-- DIENSTPLAN -->
+    <div class="view" id="v-dp">
+      <div id="dp-no-event" class="empty" hidden>
+        <div class="empty-ico">📅</div>
+        <div class="empty-txt">Kein Anlass gewählt.<br>Bitte zuerst einen Anlass auswählen.</div>
+        <button class="no-ev-btn" onclick="setTab('an',document.getElementById('tab-an'))">Zu den Anlässen</button>
+      </div>
+      <div id="dp-content">
+        <div class="toolbar" id="dp-toolbar" hidden>
+          <button id="toggle-past" class="tbtn" onclick="toggleHidePast()">⏩ Vergangene ausblenden</button>
+        </div>
+        <div class="card-list" id="schichten-list"></div>
+        <button class="add-btn" onclick="openAddSchicht()">＋ Schicht hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- PERSONEN -->
+    <div class="view" id="v-pe">
+      <div id="pe-no-event" class="empty" hidden>
+        <div class="empty-ico">👥</div>
+        <div class="empty-txt">Kein Anlass gewählt.<br>Personen sind pro Anlass erfasst.</div>
+        <button class="no-ev-btn" onclick="setTab('an',document.getElementById('tab-an'))">Zu den Anlässen</button>
+      </div>
+      <div id="pe-content">
+        <div class="card-list" id="personen-list"></div>
+        <button class="add-btn" onclick="openAddPerson(null)">＋ Person hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- POSTEN -->
+    <div class="view" id="v-po">
+      <div id="po-no-event" class="empty" hidden>
+        <div class="empty-ico">📋</div>
+        <div class="empty-txt">Kein Anlass gewählt.<br>Posten sind pro Anlass erfasst.</div>
+        <button class="no-ev-btn" onclick="setTab('an',document.getElementById('tab-an'))">Zu den Anlässen</button>
+      </div>
+      <div id="po-content">
+        <div class="card-list" id="posten-list"></div>
+        <button class="add-btn" onclick="openAddPosten(null)">＋ Posten hinzufügen</button>
+      </div>
+    </div>
+
+    <!-- ÜBERSICHT -->
+    <div class="view" id="v-au">
+      <div class="au-toggle">
+        <button class="au-tab on" onclick="setAuTab('pe',this)">👥 Nach Person</button>
+        <button class="au-tab" onclick="setAuTab('po',this)">📋 Nach Posten</button>
+      </div>
+      <div class="au-grid" id="auswertung"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" hidden onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div class="row-btns" id="modal-btns">
+      <button class="btn btn-s" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-p" id="modal-ok">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// ██  KONFIGURATION – NUR HIER ANPASSEN  ████████████████████████████████████
+// ════════════════════════════════════════════════════════════════════════════
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyBlSoLHOz57xmNeadUwJqlZEJiRxgidy0s",
+  authDomain:        "vka-albis-schichtmanager.firebaseapp.com",
+  databaseURL:       "https://vka-albis-schichtmanager-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "vka-albis-schichtmanager",
+  storageBucket:     "vka-albis-schichtmanager.firebasestorage.app",
+  messagingSenderId: "142392606566",
+  appId:             "1:142392606566:web:8cd66efec0a7ffe53112a7"
+};
+
+// Passwort – hier ändern:
+const APP_PASSWORT = "vka-albis2026";
+
+// localStorage-Schlüssel (nicht ändern):
+const PW_STORAGE_KEY = "vka_dp_auth";
+
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Passwort-Login ────────────────────────────────────────────────────────
+function doLogin(){
+  const val = (document.getElementById('pw-inp').value || '').trim();
+  if(val === APP_PASSWORT){
+    try { localStorage.setItem(PW_STORAGE_KEY, btoa(val)); } catch(e){}
+    startApp();
+  } else {
+    const errEl = document.getElementById('pw-err');
+    errEl.textContent = 'Falsches Passwort. Bitte erneut versuchen.';
+    document.getElementById('pw-inp').value = '';
+    document.getElementById('pw-inp').focus();
+    setTimeout(() => errEl.textContent = '', 3000);
+  }
+}
+
+function checkStoredLogin(){
+  try {
+    const stored = localStorage.getItem(PW_STORAGE_KEY);
+    return stored && atob(stored) === APP_PASSWORT;
+  } catch(e){ return false; }
+}
+
+function startApp(){
+  document.getElementById('pw-screen').hidden = true;
+  document.getElementById('app').hidden = false;
+  initFirebase();
+}
+
+// Beim Laden: gespeichertes Passwort prüfen
+if(checkStoredLogin()){
+  startApp();
+} else {
+  document.getElementById('pw-inp').focus();
+}
+
+// ── Firebase Init ─────────────────────────────────────────────────────────
+let db = null;
+let anlasseRef = null, schichtenRef = null, personenRef = null, postenRef = null;
+
+function initFirebase(){
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+
+    // Offline-Persistenz aktivieren (Daten werden gecacht)
+    db.ref('anlaesse').keepSynced(true);
+
+    // Verbindungsstatus überwachen
+    db.ref('.info/connected').on('value', snap => {
+      const dot = document.getElementById('syncDot');
+      if(snap.val()){
+        dot.classList.remove('offline');
+        dot.title = 'Verbunden';
+      } else {
+        dot.classList.add('offline');
+        dot.classList.remove('spin');
+        dot.title = 'Offline – Daten werden beim Reconnect synchronisiert';
+      }
+    });
+
+    subscribeAnlaesse();
+  } catch(e){
+    console.error('Firebase Init Fehler:', e);
+    document.getElementById('anlaesse-list').innerHTML =
+      `<div class="empty"><div class="empty-ico">⚠️</div>
+       <div class="empty-txt">Firebase nicht konfiguriert.<br>
+       Bitte firebaseConfig in der HTML-Datei ausfüllen.</div></div>`;
+    setSyncDot(false);
+  }
+}
+
+// ── DB-Helfer ─────────────────────────────────────────────────────────────
+function snapToArr(snap){
+  const val = snap.val();
+  if(!val) return [];
+  return Object.entries(val).map(([id, data]) => ({id, ...data}));
+}
+function anlassPath(){ return `anlaesse/${state.anlassId}`; }
+
+// ── Constants ─────────────────────────────────────────────────────────────
+const RANKS=[
+  {name:'Oberzugführer',    short:'OZF',color:'#C0392B'},
+  {name:'Zugführer',        short:'ZF', color:'#D96500'},
+  {name:'Obergruppenführer',short:'OGF',color:'#B8860B'},
+  {name:'Gruppenführer',    short:'GF', color:'#1976D2'},
+  {name:'Gefreiter',        short:'Gfr',color:'#00838F'},
+  {name:'Verkehrskadett',   short:'VK', color:'#AD1457'},
+  {name:'Anwärter',         short:'Anw',color:'#546E7A'},
+];
+const CUSTOM_COLOR='#7B6A5E';
+const rankIdx  = s => RANKS.findIndex(r => r.short === s);
+const rankColor= s => { const r=RANKS.find(r=>r.short===s); return r?r.color:CUSTOM_COLOR; };
+
+// ── State ─────────────────────────────────────────────────────────────────
+let auTab = 'pe';
+const state = {
+  anlaesse:[], personen:[], posten:[], schichten:[],
+  anlassId:null, anlassInfo:null, loading:true, hidePast:false
+};
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(s){
+  if(!s) return '—';
+  const [y,m,d] = s.split('-');
+  const dn = ['So','Mo','Di','Mi','Do','Fr','Sa'][new Date(s+'T12:00').getDay()];
+  return `${dn}, ${d}.${m}.${y}`;
+}
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function setSyncDot(v){ document.getElementById('syncDot').classList.toggle('spin',v); }
+function mapsUrl(addr){ return addr ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}` : null; }
+function getFunkModus(){ return state.anlassInfo?.funkModus || 'posten'; }
+function funkModusLabel(m){ if(m==='person')return'Name der Person'; if(m==='funk')return'Funkname (z.B. Jona42)'; return'Postenname'; }
+function funkModusSelectHtml(cur){
+  const modes=[['posten','Postenname (Standard)'],['person','Name der Person'],['funk','Funkname (z.B. Jona42)']];
+  return `<select class="fselect" id="inp-funkmodus">${modes.map(([v,l])=>`<option value="${v}"${(cur||'posten')===v?' selected':''}>${l}</option>`).join('')}</select>`;
+}
+
+// ── Firebase Subscriptions ────────────────────────────────────────────────
+function subscribeAnlaesse(){
+  setSyncDot(true);
+  anlasseRef = db.ref('anlaesse');
+  anlasseRef.on('value', snap => {
+    state.anlaesse = snapToArr(snap).sort((a,b)=>(a.datum||'').localeCompare(b.datum||''));
+    if(state.anlassId){
+      state.anlassInfo = state.anlaesse.find(a=>a.id===state.anlassId) || null;
+      if(!state.anlassInfo) selectAnlass(null);
+    }
+    state.loading = false;
+    setSyncDot(false);
+    renderAll();
+  });
+}
+
+function subscribeAnlass(id){
+  if(schichtenRef){ schichtenRef.off(); schichtenRef = null; }
+  if(personenRef) { personenRef.off();  personenRef  = null; }
+  if(postenRef)   { postenRef.off();    postenRef    = null; }
+  state.personen=[]; state.posten=[]; state.schichten=[];
+  if(!db || !id) return;
+
+  schichtenRef = db.ref(`anlaesse/${id}/schichten`);
+  schichtenRef.on('value', snap => {
+    state.schichten = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    renderSchichten(); renderAuswertung();
+  });
+
+  personenRef = db.ref(`anlaesse/${id}/personen`);
+  personenRef.on('value', snap => {
+    state.personen = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    renderPersonen(); renderSchichten(); renderAuswertung();
+  });
+
+  postenRef = db.ref(`anlaesse/${id}/posten`);
+  postenRef.on('value', snap => {
+    state.posten = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    renderPosten(); renderSchichten(); renderAuswertung();
+  });
+}
+
+// ── Anlass Selection ──────────────────────────────────────────────────────
+function selectAnlass(id){
+  state.anlassId = id;
+  state.anlassInfo = id ? state.anlaesse.find(a=>a.id===id) : null;
+  state.hidePast = false;
+  subscribeAnlass(id);
+  updateHeader(); renderAnlaesse(); renderSchichten(); renderPersonen(); renderPosten(); renderAuswertung();
+  if(id) setTab('dp', document.getElementById('tab-dp'));
+}
+function updateHeader(){
+  document.getElementById('hdr-anlass').textContent =
+    state.anlassInfo ? `${state.anlassInfo.name} · ${fmtDate(state.anlassInfo.datum)}` : 'Kein Anlass gewählt';
+}
+function setTab(id,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-'+id).classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  if(id==='au') renderAuswertung();
+}
+function setAuTab(tab,btn){
+  auTab=tab;
+  document.querySelectorAll('.au-tab').forEach(t=>t.classList.remove('on'));
+  btn.classList.add('on');
+  renderAuswertung();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function getPersonen(s){ if(Array.isArray(s.personen)&&s.personen.length>0)return s.personen; if(s.personName)return[{name:s.personName,color:s.personColor||CUSTOM_COLOR,rank:''}]; return[]; }
+function getPostenInfo(name){ return state.posten.find(p=>p.name===name)||{}; }
+function isPast(s){
+  if(!s.bis) return false;
+  const today=todayStr(), anlDatum=state.anlassInfo?.datum||today;
+  if(anlDatum<today) return true; if(anlDatum>today) return false;
+  const now=new Date(),[h,m]=s.bis.split(':').map(Number);
+  return(h*60+m)<(now.getHours()*60+now.getMinutes());
+}
+function toggleHidePast(){
+  state.hidePast=!state.hidePast;
+  const btn=document.getElementById('toggle-past');
+  btn.textContent=state.hidePast?'👁 Alle anzeigen':'⏩ Vergangene ausblenden';
+  btn.classList.toggle('on',state.hidePast);
+  renderSchichten();
+}
+
+// ── Render Anlässe ────────────────────────────────────────────────────────
+function renderAnlaesse(){
+  const el=document.getElementById('anlaesse-list');
+  if(!db){ el.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Firebase nicht verbunden.</div></div>'; return; }
+  if(state.loading){ el.innerHTML='<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Verbinde…</div></div>'; return; }
+  if(!state.anlaesse.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📅</div><div class="empty-txt">Noch keine Anlässe.</div></div>'; return; }
+  const today=todayStr();
+  el.innerHTML=state.anlaesse.map(a=>{
+    const isSel=a.id===state.anlassId, isToday=a.datum===today;
+    const [y,m,d]=a.datum.split('-');
+    const funkBadge=a.funkModus&&a.funkModus!=='posten'?`<span style="font-size:.7rem;color:var(--fg3);margin-left:4px">📻 ${funkModusLabel(a.funkModus)}</span>`:'';
+    return`<div class="an-card${isSel?' active':''}">
+      <div class="an-date"><span class="an-day">${d}</span><span style="font-size:.75rem">${m}.${y}</span></div>
+      <div class="an-info"><div class="an-name">${esc(a.name)}${funkBadge}</div><div class="an-meta">${fmtDate(a.datum)}</div></div>
+      ${isToday?'<span class="an-badge">Heute</span>':''}
+      <div class="an-btns">
+        <button class="an-go" onclick="selectAnlass('${esc(a.id)}')">Öffnen →</button>
+        <button class="ibtn-e" onclick="openEditAnlass('${esc(a.id)}')" title="Bearbeiten">✏️</button>
+        <button class="ibtn-e" onclick="openCopyAnlass('${esc(a.id)}')" title="Kopieren">📋</button>
+        <button class="ibtn" onclick="delAnlass('${esc(a.id)}')" title="Löschen">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render Schichten ──────────────────────────────────────────────────────
+function renderSchichten(){
+  const noEvt=document.getElementById('dp-no-event');
+  const content=document.getElementById('dp-content');
+  const toolbar=document.getElementById('dp-toolbar');
+  if(!state.anlassId){ noEvt.hidden=false; content.style.display='none'; return; }
+  noEvt.hidden=true; content.style.display='';
+  toolbar.hidden=(state.anlassInfo?.datum!==todayStr());
+  const el=document.getElementById('schichten-list');
+  const visible=state.hidePast?state.schichten.filter(s=>!isPast(s)):state.schichten;
+  const hiddenCount=state.schichten.length-visible.length;
+  if(!state.schichten.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">Noch keine Schichten.</div></div>'; return; }
+  if(!visible.length){ el.innerHTML=`<div class="empty"><div class="empty-ico">✅</div><div class="empty-txt">Alle ${hiddenCount} Schichten abgeschlossen.</div></div>`; return; }
+  const note=hiddenCount?`<div style="text-align:center;font-size:.8rem;color:var(--fg3);margin-bottom:6px">${hiddenCount} vergangene ausgeblendet</div>`:'';
+  el.innerHTML=note+visible.map(s=>{
+    const personen=getPersonen(s);
+    const info=getPostenInfo(s.postenName);
+    const minP=info.minPersonen||0, count=personen.length, ok=!minP||count>=minP;
+    const minRankI=info.mindestRang?rankIdx(info.mindestRang):-1;
+    const usedNames=new Set(personen.map(p=>p.name));
+    const available=state.personen.filter(p=>{
+      if(usedNames.has(p.name)) return false;
+      if(minRankI<0) return true;
+      const pi=rankIdx(p.rank||''); return pi<0||pi<=minRankI;
+    });
+    const chips=personen.map(p=>{
+      const col=p.color||rankColor(p.rank||'');
+      const below=minRankI>=0&&rankIdx(p.rank||'')>minRankI;
+      return`<span class="pchip${below?' below':''}" style="background:${col}22;border-color:${col};color:${col}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block"></span>
+        ${esc(p.name)}<span class="pchip-rank">${esc(p.rank||'?')}</span>${below?'⚠️':''}
+        <button class="pchip-rm" onclick="removePersonFromSchicht('${esc(s.id)}','${esc(p.name)}')">×</button>
+      </span>`;
+    }).join('');
+    const addSel=available.length?`<select class="add-person-sel" onchange="addPersonToSchicht('${esc(s.id)}',this)">
+      <option value="">＋ Person</option>
+      ${available.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} (${esc(p.rank||'?')})</option>`).join('')}
+    </select>`:'';
+    const reqBadge=minP?`<span class="scard-req ${ok?'ok':'warn'}">${count}/${minP}</span>`:'';
+    const mapBtn=info.standort?`<a class="maps-link" href="${mapsUrl(info.standort)}" target="_blank" rel="noopener">🗺️</a>`:'';
+    return`<div class="scard ${ok?'ok':'warn'}">
+      <div class="scard-top">
+        <span class="scard-posten">${esc(s.postenName||'—')} ${mapBtn}</span>
+        ${reqBadge}
+        <button class="ibtn" onclick="delSchicht('${esc(s.id)}')">✕</button>
+      </div>
+      <div class="scard-times">
+        <input class="tinput" type="time" value="${esc(s.von||'')}" onchange="updateSchichtField('${esc(s.id)}','von',this.value)">
+        <span class="sep">→</span>
+        <input class="tinput" type="time" value="${esc(s.bis||'')}" onchange="updateSchichtField('${esc(s.id)}','bis',this.value)">
+      </div>
+      <div class="scard-persons">${chips}${addSel}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render Personen ───────────────────────────────────────────────────────
+function renderPersonen(){
+  const noEvt=document.getElementById('pe-no-event');
+  const content=document.getElementById('pe-content');
+  if(!state.anlassId){ noEvt.hidden=false; content.style.display='none'; return; }
+  noEvt.hidden=true; content.style.display='';
+  const el=document.getElementById('personen-list');
+  const funkModus=getFunkModus();
+  if(!state.personen.length){ el.innerHTML='<div class="empty"><div class="empty-ico">👥</div><div class="empty-txt">Noch keine Personen.</div></div>'; return; }
+  el.innerHTML=state.personen.map(p=>{
+    const col=p.color||rankColor(p.rank||'');
+    const subParts=[];
+    if(p.rolle) subParts.push(`<span>${esc(p.rolle)}</span>`);
+    if(funkModus!=='posten'&&p.funkrufname) subParts.push(`<span>📻 ${esc(p.funkrufname)}</span>`);
+    return`<div class="list-item">
+      <span class="rank-badge" style="background:${col}22;color:${col}">${esc(p.rank||'?')}</span>
+      <div style="flex:1;min-width:0">
+        <div class="item-name">${esc(p.name)}</div>
+        ${subParts.length?`<div class="item-sub">${subParts.join('')}</div>`:''}
+      </div>
+      <button class="ibtn-e" onclick="openAddPerson('${esc(p.id)}')" title="Bearbeiten">✏️</button>
+      <button class="ibtn" onclick="delPerson('${esc(p.id)}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Render Posten ─────────────────────────────────────────────────────────
+function renderPosten(){
+  const noEvt=document.getElementById('po-no-event');
+  const content=document.getElementById('po-content');
+  if(!state.anlassId){ noEvt.hidden=false; content.style.display='none'; return; }
+  noEvt.hidden=true; content.style.display='';
+  const el=document.getElementById('posten-list');
+  if(!state.posten.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">Noch keine Posten.</div></div>'; return; }
+  el.innerHTML=state.posten.map(p=>{
+    const mapLink=p.standort?`<a class="maps-link" href="${mapsUrl(p.standort)}" target="_blank" rel="noopener">🗺️ Navigation</a>`:'';
+    const hasSub=p.beschreibung||p.mindestRang||p.minPersonen||p.standort;
+    return`<div class="list-item">
+      <div style="flex:1;min-width:0">
+        <div class="item-name">${esc(p.name)}</div>
+        ${hasSub?`<div class="item-sub">
+          ${p.beschreibung?`<span>${esc(p.beschreibung)}</span>`:''}
+          ${p.mindestRang?`<span>🎖 Min. ${esc(p.mindestRang)}</span>`:''}
+          ${p.minPersonen>0?`<span>👥 Min. ${p.minPersonen}</span>`:''}
+          ${p.standort?`<span style="font-size:.78rem;color:var(--fg3)">${esc(p.standort)}</span>${mapLink}`:''}
+        </div>`:''}
+      </div>
+      <button class="ibtn-e" onclick="openAddPosten('${esc(p.id)}')" title="Bearbeiten">✏️</button>
+      <button class="ibtn" onclick="delPosten('${esc(p.id)}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ── Render Auswertung ─────────────────────────────────────────────────────
+function renderAuswertung(){
+  if(!document.getElementById('v-au').classList.contains('on')) return;
+  const el=document.getElementById('auswertung');
+  if(!state.anlassId){ el.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📅</div><div class="empty-txt">Kein Anlass gewählt.</div></div>'; return; }
+  auTab==='pe' ? renderAuPerson(el) : renderAuPosten(el);
+}
+function renderAuPerson(el){
+  if(!state.personen.length&&!state.schichten.length){ el.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📊</div><div class="empty-txt">Noch keine Daten.</div></div>'; return; }
+  const funkModus=getFunkModus();
+  const unassigned=state.schichten.filter(s=>getPersonen(s).length===0);
+  let html='';
+  for(const p of state.personen){
+    const col=p.color||rankColor(p.rank||'');
+    const einsaetze=state.schichten.filter(s=>getPersonen(s).some(x=>x.name===p.name));
+    const rufBadge=(funkModus!=='posten'&&p.funkrufname)?`<span class="au-rufname">📻 ${esc(p.funkrufname)}</span>`:'';
+    html+=`<div class="au-card">
+      <div class="au-head" style="border-left:4px solid ${col}">
+        <span class="rank-badge" style="background:${col}22;color:${col};font-size:.7rem">${esc(p.rank||'?')}</span>
+        <span class="au-name">${esc(p.name)}</span>${rufBadge}
+      </div>
+      ${p.rolle?`<div style="padding:4px 14px 0;font-size:.78rem;color:var(--fg2)">${esc(p.rolle)}</div>`:''}
+      <div class="au-body">${einsaetze.length?einsaetze.map(e=>`<div class="au-row"><span>${esc(e.postenName)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join(''):'<div style="color:var(--fg3);font-size:.875rem;padding:6px 0">Kein Einsatz</div>'}</div>
+    </div>`;
+  }
+  if(unassigned.length) html+=`<div class="au-card"><div class="au-head" style="border-left:4px solid var(--danger)"><span>⚠️</span><span class="au-name" style="color:var(--danger)">Nicht besetzt</span></div><div class="au-body">${unassigned.map(e=>`<div class="au-row"><span>${esc(e.postenName)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join('')}</div></div>`;
+  el.innerHTML=html||'<div class="empty" style="grid-column:1/-1"><div class="empty-txt">Niemand eingeteilt.</div></div>';
+}
+function renderAuPosten(el){
+  if(!state.schichten.length){ el.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📋</div><div class="empty-txt">Noch keine Schichten.</div></div>'; return; }
+  const funkModus=getFunkModus();
+  const byPosten={};
+  for(const s of state.schichten){ const k=s.postenName||'—'; if(!byPosten[k]) byPosten[k]=[]; byPosten[k].push(s); }
+  let html='';
+  for(const [pn,sch] of Object.entries(byPosten)){
+    const info=getPostenInfo(pn); const minP=info.minPersonen||0;
+    const rufBadge=(funkModus==='posten')?`<span class="au-rufname">📻 ${esc(pn)}</span>`:'';
+    const mapLink=info.standort?`<a class="maps-link" href="${mapsUrl(info.standort)}" target="_blank" rel="noopener" style="margin-left:auto">🗺️ Nav</a>`:'';
+    html+=`<div class="au-card">
+      <div class="au-head"><span>📍</span><span class="au-name">${esc(pn)}</span>${rufBadge}
+        ${info.mindestRang?`<span style="font-size:.75rem;color:var(--fg2);margin-left:auto">Min. ${esc(info.mindestRang)}</span>`:''}${mapLink}
+      </div>
+      ${info.beschreibung?`<div style="padding:5px 14px 0;font-size:.78rem;color:var(--fg2)">${esc(info.beschreibung)}</div>`:''}
+      <div class="au-body">${sch.map(s=>{
+        const personen=getPersonen(s); const ok=!minP||personen.length>=minP;
+        return`<div class="au-row" style="flex-direction:column;align-items:flex-start;gap:5px;padding-block:7px">
+          <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+            <span style="color:var(--fg2);font-size:.85rem">${s.von||'?'} – ${s.bis||'?'}</span>
+            ${minP?`<span style="font-size:.75rem;font-weight:700;color:${ok?'var(--ok)':'var(--danger)'}">${personen.length}/${minP}</span>`:''}
+          </div>
+          <div class="au-chips">${personen.length?personen.map(p=>{const col=p.color||rankColor(p.rank||'');return`<span class="au-chip" style="background:${col}22;color:${col}"><span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block"></span>${esc(p.name)}<span style="opacity:.7;font-size:.7rem">${esc(p.rank||'')}</span></span>`;}).join(''):'<span style="font-size:.8rem;color:var(--danger)">⚠ Nicht besetzt</span>'}
+          </div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+  }
+  el.innerHTML=html;
+}
+function renderAll(){
+  updateHeader(); renderAnlaesse(); renderSchichten(); renderPersonen(); renderPosten();
+  if(document.getElementById('v-au').classList.contains('on')) renderAuswertung();
+}
+
+// ── DB Writes ─────────────────────────────────────────────────────────────
+async function updateSchichtField(id,field,value){
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/schichten/${id}`).update({[field]:value});
+  setSyncDot(false);
+}
+async function addPersonToSchicht(id,sel){
+  const name=sel.value; if(!name) return; sel.value='';
+  const s=state.schichten.find(x=>x.id===id); if(!s) return;
+  const current=getPersonen(s); if(current.find(p=>p.name===name)) return;
+  const person=state.personen.find(p=>p.name===name)||{};
+  const col=person.color||rankColor(person.rank||'');
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/schichten/${id}`).update({personen:[...current,{name,color:col,rank:person.rank||''}]});
+  setSyncDot(false);
+}
+async function removePersonFromSchicht(id,name){
+  const s=state.schichten.find(x=>x.id===id); if(!s) return;
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/schichten/${id}`).update({personen:getPersonen(s).filter(p=>p.name!==name)});
+  setSyncDot(false);
+}
+async function delSchicht(id){ await db.ref(`${anlassPath()}/schichten/${id}`).remove(); }
+async function delPerson(id) { await db.ref(`${anlassPath()}/personen/${id}`).remove(); }
+async function delPosten(id) { await db.ref(`${anlassPath()}/posten/${id}`).remove(); }
+function delAnlass(id){
+  if(!db) return;
+  const a=state.anlaesse.find(x=>x.id===id);
+  openModal('Anlass löschen',
+    `<p style="color:var(--fg2);line-height:1.6">Anlass <strong>${esc(a?.name||id)}</strong> und alle zugehörigen Daten werden unwiderruflich gelöscht.</p>`,
+    'Löschen', async()=>{
+      closeModal(); setSyncDot(true);
+      await db.ref(`anlaesse/${id}`).remove();
+      setSyncDot(false);
+      if(state.anlassId===id) selectAnlass(null);
+    });
+  setTimeout(()=>{ const ok=document.getElementById('modal-ok'); if(ok) ok.style.background='var(--danger)'; },10);
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────
+function openModal(title,bodyHTML,okLabel,onOk){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=bodyHTML;
+  document.getElementById('modal-ok').textContent=okLabel;
+  document.getElementById('modal-ok').style.background='';
+  document.getElementById('modal-ok').onclick=onOk;
+  document.getElementById('modal-btns').hidden=false;
+  document.getElementById('overlay').hidden=false;
+  setTimeout(()=>{ const inp=document.querySelector('#modal-body input:not([type=checkbox]),#modal-body select'); if(inp&&inp.type!=='checkbox') inp.focus(); },50);
+}
+function closeModal(e){ if(e&&e.target!==document.getElementById('overlay')) return; document.getElementById('overlay').hidden=true; }
+
+// ── Rank Picker ───────────────────────────────────────────────────────────
+let _selRank='';
+function rankPickerHtml(sel=''){
+  const isCustom=!!sel&&!RANKS.find(r=>r.short===sel);
+  return`<div class="rank-grid" id="rank-grid">${RANKS.map(r=>`
+    <button type="button" class="rank-opt${sel===r.short?' on':''}" onclick="selectRank('${r.short}')" data-rank="${r.short}">
+      <span class="rank-dot" style="background:${r.color}"></span>${r.short}<span style="color:var(--fg3);font-size:.7rem;font-weight:400;margin-left:2px">${r.name}</span>
+    </button>`).join('')}
+    <button type="button" class="rank-opt${isCustom?' on':''}" onclick="selectRank('__custom__')" data-rank="__custom__">
+      <span class="rank-dot" style="background:${CUSTOM_COLOR}"></span>Andere…
+    </button>
+  </div>
+  <input class="finput" id="rank-custom-inp" placeholder="Benutzerdefinierter Rang…" style="display:${isCustom?'block':'none'};margin-top:6px" value="${isCustom?esc(sel):''}">`;
+}
+function selectRank(short){
+  _selRank=short;
+  document.querySelectorAll('#rank-grid .rank-opt').forEach(b=>b.classList.toggle('on',b.dataset.rank===short));
+  const ci=document.getElementById('rank-custom-inp');
+  if(ci){ ci.style.display=short==='__custom__'?'block':'none'; if(short==='__custom__') ci.focus(); }
+}
+function getSelRank(){
+  if(_selRank==='__custom__'){ const ci=document.getElementById('rank-custom-inp'); return ci?ci.value.trim():''; }
+  return _selRank;
+}
+
+// ── Anlass CRUD ───────────────────────────────────────────────────────────
+function anlassFormHtml(a){
+  return`
+    <div class="fg"><label class="flabel">Bezeichnung</label>
+      <input class="finput" id="inp-aname" value="${esc(a?.name||'')}" placeholder="z.B. 125-Jahr-Jubiläum…" autocomplete="off"></div>
+    <div class="fg"><label class="flabel">Datum</label>
+      <input class="finput" type="date" id="inp-adata" value="${esc(a?.datum||todayStr())}"></div>
+    <div class="fg"><label class="flabel">Rufname-Modus</label>
+      ${funkModusSelectHtml(a?.funkModus)}</div>`;
+}
+function openAddAnlass(){ openModal('Neuen Anlass erstellen',anlassFormHtml(null),'Erstellen',saveAnlass); }
+function openEditAnlass(id){
+  const a=state.anlaesse.find(x=>x.id===id); if(!a) return;
+  openModal('Anlass bearbeiten',anlassFormHtml(a),'Speichern',async()=>{
+    const name=(document.getElementById('inp-aname').value||'').trim();
+    const datum=document.getElementById('inp-adata').value;
+    const funkModus=document.getElementById('inp-funkmodus').value||'posten';
+    if(!name||!datum) return;
+    setSyncDot(true); await db.ref(`anlaesse/${id}`).update({name,datum,funkModus}); setSyncDot(false); closeModal();
+  });
+}
+async function saveAnlass(){
+  const name=(document.getElementById('inp-aname').value||'').trim();
+  const datum=document.getElementById('inp-adata').value;
+  const funkModus=document.getElementById('inp-funkmodus')?.value||'posten';
+  if(!name){ document.getElementById('inp-aname').focus(); return; }
+  if(!datum){ document.getElementById('inp-adata').focus(); return; }
+  setSyncDot(true);
+  const newRef = await db.ref('anlaesse').push({name,datum,funkModus,createdAt:Date.now()});
+  setSyncDot(false); closeModal();
+  setTimeout(()=>selectAnlass(newRef.key),300);
+}
+
+// ── Copy Anlass ───────────────────────────────────────────────────────────
+function openCopyAnlass(sourceId){
+  const src=state.anlaesse.find(a=>a.id===sourceId); if(!src) return;
+  document.getElementById('modal-title').textContent='Anlass kopieren';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="step on" id="copy-step-1">
+      <div class="step-head">Schritt 1 von 2 · Details des neuen Anlasses</div>
+      <div class="fg"><label class="flabel">Bezeichnung</label>
+        <input class="finput" id="copy-aname" value="${esc(src.name)}" autocomplete="off"></div>
+      <div class="fg"><label class="flabel">Datum</label>
+        <input class="finput" type="date" id="copy-adata" value="${esc(src.datum)}"></div>
+      <div class="fg"><label class="flabel">Rufname-Modus</label>${funkModusSelectHtml(src.funkModus)}</div>
+    </div>
+    <div class="step" id="copy-step-2">
+      <div class="step-head">Schritt 2 von 2 · Was übernehmen?</div>
+      <label class="chk-row"><input type="checkbox" id="chk-personen" checked><div><div class="chk-lbl">Personen</div><div class="chk-sub">Alle Personen übernehmen</div></div></label>
+      <label class="chk-row"><input type="checkbox" id="chk-posten" checked><div><div class="chk-lbl">Posten</div><div class="chk-sub">Alle Posten mit Standort und Anforderungen übernehmen</div></div></label>
+      <label class="chk-row"><input type="checkbox" id="chk-schichten" checked><div><div class="chk-lbl">Schichtplan</div><div class="chk-sub">Alle Schichten mit Zeiten übernehmen (ohne Personen)</div></div></label>
+      <label class="chk-row"><input type="checkbox" id="chk-szuteilung"><div><div class="chk-lbl">Personenzuteilung</div><div class="chk-sub">Auch zugeteilte Personen kopieren</div></div></label>
+    </div>`;
+  document.getElementById('modal-ok').textContent='Weiter →';
+  document.getElementById('modal-ok').style.background='';
+  document.getElementById('modal-ok').onclick=()=>{
+    const name=(document.getElementById('copy-aname')?.value||'').trim();
+    const datum=document.getElementById('copy-adata')?.value;
+    if(!name||!datum) return;
+    document.querySelectorAll('.step').forEach(s=>s.classList.remove('on'));
+    document.getElementById('copy-step-2').classList.add('on');
+    document.getElementById('modal-ok').textContent='Kopieren';
+    document.getElementById('modal-ok').onclick=()=>doCopy(sourceId,name,datum);
+  };
+  document.getElementById('modal-btns').hidden=false;
+  document.getElementById('overlay').hidden=false;
+  setTimeout(()=>{ document.getElementById('copy-aname')?.focus(); },50);
+}
+async function doCopy(sourceId,name,datum){
+  const funkModus=document.getElementById('inp-funkmodus')?.value||'posten';
+  const copyPersonen=document.getElementById('chk-personen').checked;
+  const copyPosten=document.getElementById('chk-posten').checked;
+  const copySchichten=document.getElementById('chk-schichten').checked;
+  const copyZuteilung=document.getElementById('chk-szuteilung').checked;
+  setSyncDot(true);
+  const newRef=await db.ref('anlaesse').push({name,datum,funkModus,createdAt:Date.now()});
+  const newId=newRef.key;
+  if(copyPersonen){
+    const snap=await db.ref(`anlaesse/${sourceId}/personen`).once('value');
+    const items=snapToArr(snap);
+    for(const item of items){ const {id,...d}=item; await db.ref(`anlaesse/${newId}/personen`).push({...d,createdAt:Date.now()}); }
+  }
+  if(copyPosten){
+    const snap=await db.ref(`anlaesse/${sourceId}/posten`).once('value');
+    const items=snapToArr(snap);
+    for(const item of items){ const {id,...d}=item; await db.ref(`anlaesse/${newId}/posten`).push({...d,createdAt:Date.now()}); }
+  }
+  if(copySchichten){
+    const snap=await db.ref(`anlaesse/${sourceId}/schichten`).once('value');
+    const items=snapToArr(snap);
+    for(const item of items){
+      await db.ref(`anlaesse/${newId}/schichten`).push({
+        postenName:item.postenName,von:item.von,bis:item.bis,
+        personen:copyZuteilung?(item.personen||[]):[],
+        createdAt:Date.now()
+      });
+    }
+  }
+  setSyncDot(false); closeModal();
+  setTimeout(()=>selectAnlass(newId),300);
+}
+
+// ── Schicht CRUD ──────────────────────────────────────────────────────────
+function openAddSchicht(){
+  const grid=state.posten.length
+    ?`<div class="pgrid">${state.posten.map(p=>`<button type="button" class="popt" onclick="selectPosten(this,'${esc(p.name)}')">${esc(p.name)}</button>`).join('')}</div>`:'';
+  openModal('Schicht hinzufügen',`
+    <div class="fg"><label class="flabel">Posten</label>${grid}
+      <input class="finput" id="inp-posten" placeholder="Postenname…" style="margin-top:${state.posten.length?'10px':'0'}" autocomplete="off"></div>
+    <div class="frow">
+      <div><label class="flabel">Von</label><input class="finput" type="time" id="inp-von"></div>
+      <div><label class="flabel">Bis</label><input class="finput" type="time" id="inp-bis"></div>
+    </div>`,'Hinzufügen',saveSchicht);
+}
+function selectPosten(btn,name){
+  document.querySelectorAll('.popt').forEach(b=>b.classList.remove('on')); btn.classList.add('on');
+  document.getElementById('inp-posten').value=name;
+}
+async function saveSchicht(){
+  const name=(document.getElementById('inp-posten').value||'').trim();
+  const von=document.getElementById('inp-von').value, bis=document.getElementById('inp-bis').value;
+  if(!name){ document.getElementById('inp-posten').focus(); return; }
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/schichten`).push({postenName:name,von,bis,personen:[],createdAt:Date.now()});
+  setSyncDot(false); closeModal();
+}
+
+// ── Person CRUD ───────────────────────────────────────────────────────────
+function openAddPerson(editId){
+  const existing=editId?state.personen.find(p=>p.id===editId):null;
+  _selRank=existing?.rank||'';
+  const funkModus=getFunkModus(), showFunk=funkModus!=='posten';
+  const funkLabel=funkModus==='funk'?'Funkrufname (z.B. Jona42)':'Rufname';
+  const funkPlaceholder=funkModus==='funk'?'z.B. Jona42, Delta3…':'Rufname der Person…';
+  openModal(existing?'Person bearbeiten':'Person hinzufügen',`
+    <div class="fg"><label class="flabel">Name</label>
+      <input class="finput" id="inp-name" value="${esc(existing?.name||'')}" placeholder="z.B. Anna Müller" autocomplete="off"></div>
+    <div class="fg"><label class="flabel">Rang / Rolle</label>${rankPickerHtml(existing?.rank||'')}</div>
+    <div class="fg"><label class="flabel">Funktion (optional)</label>
+      <input class="finput" id="inp-rolle" value="${esc(existing?.rolle||'')}" placeholder="z.B. Einsatzleiter (EL), Stv…" autocomplete="off"></div>
+    ${showFunk?`<div class="fg"><label class="flabel">${esc(funkLabel)}</label>
+      <input class="finput" id="inp-funkruf" value="${esc(existing?.funkrufname||'')}" placeholder="${esc(funkPlaceholder)}" autocomplete="off"></div>`:''}`,
+    existing?'Speichern':'Hinzufügen',
+    existing?()=>updatePerson(editId):savePerson);
+}
+async function savePerson(){
+  const name=(document.getElementById('inp-name').value||'').trim();
+  const rank=getSelRank();
+  if(!name){ document.getElementById('inp-name').focus(); return; }
+  if(!rank){ alert('Bitte einen Rang auswählen.'); return; }
+  const color=rankColor(rank);
+  const rolle=(document.getElementById('inp-rolle')?.value||'').trim();
+  const funkrufname=(document.getElementById('inp-funkruf')?.value||'').trim();
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/personen`).push({name,rank,rolle,funkrufname,color,createdAt:Date.now()});
+  setSyncDot(false); closeModal();
+}
+async function updatePerson(id){
+  const name=(document.getElementById('inp-name').value||'').trim();
+  const rank=getSelRank();
+  if(!name){ document.getElementById('inp-name').focus(); return; }
+  if(!rank){ alert('Bitte einen Rang auswählen.'); return; }
+  const color=rankColor(rank);
+  const rolle=(document.getElementById('inp-rolle')?.value||'').trim();
+  const funkrufname=(document.getElementById('inp-funkruf')?.value||'').trim();
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/personen/${id}`).update({name,rank,rolle,funkrufname,color});
+  setSyncDot(false); closeModal();
+}
+
+// ── Posten CRUD ───────────────────────────────────────────────────────────
+function openAddPosten(editId){
+  const existing=editId?state.posten.find(p=>p.id===editId):null;
+  openModal(existing?'Posten bearbeiten':'Posten hinzufügen',`
+    <div class="fg"><label class="flabel">Name</label>
+      <input class="finput" id="inp-pname" value="${esc(existing?.name||'')}" placeholder="z.B. Eingang, Kasse…" autocomplete="off"></div>
+    <div class="fg"><label class="flabel">Beschreibung (optional)</label>
+      <input class="finput" id="inp-pbeschr" value="${esc(existing?.beschreibung||'')}" placeholder="Kurze Beschreibung…" autocomplete="off"></div>
+    <div class="fg"><label class="flabel">Standort / Adresse (optional)</label>
+      <input class="finput" id="inp-pstandort" value="${esc(existing?.standort||'')}" placeholder="z.B. Hauptstrasse 1, 8914 Aeugst…" autocomplete="off">
+      <div style="font-size:.75rem;color:var(--fg3);margin-top:4px">Wird als Google Maps Navigationslink angezeigt.</div></div>
+    <div class="fg"><label class="flabel">Mindestrang (optional)</label>
+      <select class="fselect" id="inp-prank">
+        <option value="">— keine Anforderung —</option>
+        ${RANKS.map(r=>`<option value="${r.short}"${existing?.mindestRang===r.short?' selected':''}>${r.short} – ${r.name}</option>`).join('')}
+      </select></div>
+    <div class="fg"><label class="flabel">Mindestanzahl Personen</label>
+      <input class="finput" type="number" id="inp-pmin" min="0" max="20" value="${existing?.minPersonen??1}"></div>`,
+    existing?'Speichern':'Hinzufügen',
+    existing?()=>updatePosten(editId):savePosten);
+}
+async function savePosten(){
+  const name=(document.getElementById('inp-pname').value||'').trim();
+  if(!name){ document.getElementById('inp-pname').focus(); return; }
+  const beschreibung=(document.getElementById('inp-pbeschr').value||'').trim();
+  const standort=(document.getElementById('inp-pstandort').value||'').trim();
+  const mindestRang=document.getElementById('inp-prank').value;
+  const minPersonen=parseInt(document.getElementById('inp-pmin').value)||0;
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/posten`).push({name,beschreibung,standort,mindestRang,minPersonen,createdAt:Date.now()});
+  setSyncDot(false); closeModal();
+}
+async function updatePosten(id){
+  const name=(document.getElementById('inp-pname').value||'').trim();
+  if(!name){ document.getElementById('inp-pname').focus(); return; }
+  const beschreibung=(document.getElementById('inp-pbeschr').value||'').trim();
+  const standort=(document.getElementById('inp-pstandort').value||'').trim();
+  const mindestRang=document.getElementById('inp-prank').value;
+  const minPersonen=parseInt(document.getElementById('inp-pmin').value)||0;
+  setSyncDot(true);
+  await db.ref(`${anlassPath()}/posten/${id}`).update({name,beschreibung,standort,mindestRang,minPersonen});
+  setSyncDot(false); closeModal();
+}
+</script>
+</body>
+</html>
