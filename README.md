@@ -49,8 +49,8 @@ Posten sind die Stationen oder Aufgabenbereiche des Anlasses (z.B. «Sanitätspo
 1. Tab **Personen** → **+ Neue Person**
 2. Felder ausfüllen:
    - **Name**
-   - **Rang** — z.B. RS, San, Gruppenführer
-   - **Rolle** — z.B. Fahrer, Sanitäter
+   - **Rang** — z.B. VK, Gruppenführer, Obergruppenführer
+   - **Rolle** — z.B. EL, Stv
    - **Funkrufname** — wird im Funk-Modus statt des Postens angezeigt
    - **Farbe** — zur visuellen Unterscheidung im Plan
 3. Speichern
@@ -84,7 +84,7 @@ Der Funk-Modus steuert, was im Plan angezeigt wird:
 
 | Modus | Anzeige |
 |---|---|
-| Posten | Postenname (z.B. «Sanitätsposten Ost») |
+| Posten | Postenname (z.B. «Kreuzung») |
 | Funk | Funkrufname der eingeteilten Person |
 
 Der Modus wird pro Anlass gesetzt und kann beim Erstellen oder Bearbeiten eines Anlasses geändert werden.
