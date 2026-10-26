@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>VKA Dienstplan</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#FF7900">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VKA Dienstplan">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
 /* ── SUPABASE CONFIG & PASSWORT (HIER ANPASSEN) ──────────────────────────────
@@ -1049,6 +1057,13 @@ async function updatePosten(id){
   setSyncDot(true);
   await sb.from('posten').update({name,beschreibung,standort,mindest_rang,min_personen}).eq('id',id);
   setSyncDot(false); closeModal();
+}
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
 }
 </script>
 </body>

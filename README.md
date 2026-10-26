@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/33965591/README.md)
 # VKA Dienstplan
 
 Web-App zur Einsatzplanung für den Verband der Krankentransporte Albis (VKA). Ermöglicht das Erstellen und Verwalten von Anlässen, Personen, Posten und Schichtzuteilungen — live synchronisiert über alle Geräte.
