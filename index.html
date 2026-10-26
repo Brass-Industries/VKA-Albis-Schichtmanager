@@ -6,8 +6,8 @@
 <title>VKA Dienstplan</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* ── FIREBASE CONFIG & PASSWORT (HIER ANPASSEN) ──────────────────────────────
-   Schritt 1: firebaseConfig unten in <script> ausfüllen
+/* ── SUPABASE CONFIG & PASSWORT (HIER ANPASSEN) ──────────────────────────────
+   Schritt 1: SUPABASE_URL und SUPABASE_ANON_KEY unten in <script> ausfüllen
    Schritt 2: APP_PASSWORT setzen
    ─────────────────────────────────────────────────────────────────────────── */
 
@@ -34,6 +34,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg)}
 
 /* ── PASSWORD SCREEN ──────────────────────────────────────────────────────── */
@@ -333,24 +334,16 @@ a.maps-link:hover{text-decoration:underline}
   </div>
 </div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 
 <script>
 // ════════════════════════════════════════════════════════════════════════════
 // ██  KONFIGURATION – NUR HIER ANPASSEN  ████████████████████████████████████
 // ════════════════════════════════════════════════════════════════════════════
 
-const firebaseConfig = {
-  apiKey:            "AIzaSyBlSoLHOz57xmNeadUwJqlZEJiRxgidy0s",
-  authDomain:        "vka-albis-schichtmanager.firebaseapp.com",
-  databaseURL:       "https://vka-albis-schichtmanager-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId:         "vka-albis-schichtmanager",
-  storageBucket:     "vka-albis-schichtmanager.firebasestorage.app",
-  messagingSenderId: "142392606566",
-  appId:             "1:142392606566:web:8cd66efec0a7ffe53112a7"
-};
+const SUPABASE_URL      = "https://rporfzfqnbtxqwsidjjj.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_oob-IKi3DHS7YcFX98TccA_atTShwSJ";
 
 // Passwort – hier ändern:
 const APP_PASSWORT = "vka-albis2026";
@@ -383,9 +376,12 @@ function checkStoredLogin(){
 }
 
 function startApp(){
-  document.getElementById('pw-screen').hidden = true;
-  document.getElementById('app').hidden = false;
-  initFirebase();
+  const pwScreen = document.getElementById('pw-screen');
+  const appEl = document.getElementById('app');
+  pwScreen.style.display = 'none';
+  appEl.style.display = 'flex';
+  appEl.removeAttribute('hidden');
+  setTimeout(initFirebase, 50);
 }
 
 // Beim Laden: gespeichertes Passwort prüfen
@@ -395,46 +391,69 @@ if(checkStoredLogin()){
   document.getElementById('pw-inp').focus();
 }
 
-// ── Firebase Init ─────────────────────────────────────────────────────────
-let db = null;
-let anlasseRef = null, schichtenRef = null, personenRef = null, postenRef = null;
+// ── Supabase Init ─────────────────────────────────────────────────────────
+let sb = null;
+let _anlasseChannel = null, _anlassChannel = null;
 
 function initFirebase(){
   try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.database();
-
-    // Verbindungsstatus überwachen
-    db.ref('.info/connected').on('value', snap => {
-      const dot = document.getElementById('syncDot');
-      if(snap.val()){
-        dot.classList.remove('offline');
-        dot.title = 'Verbunden';
-      } else {
-        dot.classList.add('offline');
-        dot.classList.remove('spin');
-        dot.title = 'Offline – Daten werden beim Reconnect synchronisiert';
-      }
-    });
-
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const dot = document.getElementById('syncDot');
+    dot.classList.remove('offline');
+    dot.title = 'Verbunden';
     subscribeAnlaesse();
   } catch(e){
-    console.error('Firebase Init Fehler:', e);
+    console.error('Supabase Init Fehler:', e);
     document.getElementById('anlaesse-list').innerHTML =
       `<div class="empty"><div class="empty-ico">⚠️</div>
-       <div class="empty-txt">Firebase nicht konfiguriert.<br>
-       Bitte firebaseConfig in der HTML-Datei ausfüllen.</div></div>`;
+       <div class="empty-txt">Supabase nicht konfiguriert.<br>
+       Bitte SUPABASE_URL und SUPABASE_ANON_KEY in der HTML-Datei ausfüllen.</div></div>`;
     setSyncDot(false);
   }
 }
 
 // ── DB-Helfer ─────────────────────────────────────────────────────────────
-function snapToArr(snap){
-  const val = snap.val();
-  if(!val) return [];
-  return Object.entries(val).map(([id, data]) => ({id, ...data}));
+// Supabase gibt Arrays zurück – kein snapToArr nötig
+function anlassPath(){ return state.anlassId; }
+
+async function sbGetAnlaesse(){
+  const {data,error} = await sb.from('anlaesse').select('*').order('datum');
+  if(error) throw error;
+  return data||[];
 }
-function anlassPath(){ return `anlaesse/${state.anlassId}`; }
+async function sbGetSub(table){
+  const {data,error} = await sb.from(table).select('*')
+    .eq('anlass_id', state.anlassId).order('created_at');
+  if(error) throw error;
+  return data||[];
+}
+async function reloadAnlaesse(){
+  setSyncDot(true);
+  try {
+    state.anlaesse = await sbGetAnlaesse();
+    if(state.anlassId){
+      state.anlassInfo = state.anlaesse.find(a=>a.id===state.anlassId)||null;
+      if(!state.anlassInfo) selectAnlass(null);
+    }
+  } catch(e){ console.error(e); }
+  state.loading = false;
+  setSyncDot(false);
+  renderAll();
+}
+async function reloadAnlass(){
+  if(!state.anlassId) return;
+  setSyncDot(true);
+  try {
+    const [sch,per,pos] = await Promise.all([
+      sbGetSub('schichten'), sbGetSub('personen'), sbGetSub('posten')
+    ]);
+    state.schichten = sch;
+    state.personen  = per;
+    state.posten    = pos;
+  } catch(e){ console.error(e); }
+  setSyncDot(false);
+  renderSchichten(); renderPersonen(); renderPosten(); renderAuswertung();
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const RANKS=[
@@ -468,53 +487,32 @@ function fmtDate(s){
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function setSyncDot(v){ document.getElementById('syncDot').classList.toggle('spin',v); }
 function mapsUrl(addr){ return addr ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}` : null; }
-function getFunkModus(){ return state.anlassInfo?.funkModus || 'posten'; }
+function getFunkModus(){ return state.anlassInfo?.funk_modus || 'posten'; }
 function funkModusLabel(m){ if(m==='person')return'Name der Person'; if(m==='funk')return'Funkname (z.B. Jona42)'; return'Postenname'; }
 function funkModusSelectHtml(cur){
   const modes=[['posten','Postenname (Standard)'],['person','Name der Person'],['funk','Funkname (z.B. Jona42)']];
   return `<select class="fselect" id="inp-funkmodus">${modes.map(([v,l])=>`<option value="${v}"${(cur||'posten')===v?' selected':''}>${l}</option>`).join('')}</select>`;
 }
 
-// ── Firebase Subscriptions ────────────────────────────────────────────────
+// ── Supabase Subscriptions ────────────────────────────────────────────────
 function subscribeAnlaesse(){
-  setSyncDot(true);
-  anlasseRef = db.ref('anlaesse');
-  anlasseRef.on('value', snap => {
-    state.anlaesse = snapToArr(snap).sort((a,b)=>(a.datum||'').localeCompare(b.datum||''));
-    if(state.anlassId){
-      state.anlassInfo = state.anlaesse.find(a=>a.id===state.anlassId) || null;
-      if(!state.anlassInfo) selectAnlass(null);
-    }
-    state.loading = false;
-    setSyncDot(false);
-    renderAll();
-  });
+  reloadAnlaesse();
+  if(_anlasseChannel) sb.removeChannel(_anlasseChannel);
+  _anlasseChannel = sb.channel('anlaesse-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'anlaesse'},()=>reloadAnlaesse())
+    .subscribe();
 }
 
 function subscribeAnlass(id){
-  if(schichtenRef){ schichtenRef.off(); schichtenRef = null; }
-  if(personenRef) { personenRef.off();  personenRef  = null; }
-  if(postenRef)   { postenRef.off();    postenRef    = null; }
+  if(_anlassChannel){ sb.removeChannel(_anlassChannel); _anlassChannel=null; }
   state.personen=[]; state.posten=[]; state.schichten=[];
-  if(!db || !id) return;
-
-  schichtenRef = db.ref(`anlaesse/${id}/schichten`);
-  schichtenRef.on('value', snap => {
-    state.schichten = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-    renderSchichten(); renderAuswertung();
-  });
-
-  personenRef = db.ref(`anlaesse/${id}/personen`);
-  personenRef.on('value', snap => {
-    state.personen = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-    renderPersonen(); renderSchichten(); renderAuswertung();
-  });
-
-  postenRef = db.ref(`anlaesse/${id}/posten`);
-  postenRef.on('value', snap => {
-    state.posten = snapToArr(snap).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-    renderPosten(); renderSchichten(); renderAuswertung();
-  });
+  if(!sb || !id) return;
+  reloadAnlass();
+  _anlassChannel = sb.channel('anlass-'+id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'schichten',filter:`anlass_id=eq.${id}`},()=>reloadAnlass())
+    .on('postgres_changes',{event:'*',schema:'public',table:'personen', filter:`anlass_id=eq.${id}`},()=>reloadAnlass())
+    .on('postgres_changes',{event:'*',schema:'public',table:'posten',   filter:`anlass_id=eq.${id}`},()=>reloadAnlass())
+    .subscribe();
 }
 
 // ── Anlass Selection ──────────────────────────────────────────────────────
@@ -565,14 +563,14 @@ function toggleHidePast(){
 // ── Render Anlässe ────────────────────────────────────────────────────────
 function renderAnlaesse(){
   const el=document.getElementById('anlaesse-list');
-  if(!db){ el.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Firebase nicht verbunden.</div></div>'; return; }
+  if(!sb){ el.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-txt">Supabase nicht verbunden.</div></div>'; return; }
   if(state.loading){ el.innerHTML='<div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Verbinde…</div></div>'; return; }
   if(!state.anlaesse.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📅</div><div class="empty-txt">Noch keine Anlässe.</div></div>'; return; }
   const today=todayStr();
   el.innerHTML=state.anlaesse.map(a=>{
     const isSel=a.id===state.anlassId, isToday=a.datum===today;
     const [y,m,d]=a.datum.split('-');
-    const funkBadge=a.funkModus&&a.funkModus!=='posten'?`<span style="font-size:.7rem;color:var(--fg3);margin-left:4px">📻 ${funkModusLabel(a.funkModus)}</span>`:'';
+    const funkBadge=a.funk_modus&&a.funk_modus!=='posten'?`<span style="font-size:.7rem;color:var(--fg3);margin-left:4px">📻 ${funkModusLabel(a.funk_modus)}</span>`:'';
     return`<div class="an-card${isSel?' active':''}">
       <div class="an-date"><span class="an-day">${d}</span><span style="font-size:.75rem">${m}.${y}</span></div>
       <div class="an-info"><div class="an-name">${esc(a.name)}${funkBadge}</div><div class="an-meta">${fmtDate(a.datum)}</div></div>
@@ -603,9 +601,9 @@ function renderSchichten(){
   const note=hiddenCount?`<div style="text-align:center;font-size:.8rem;color:var(--fg3);margin-bottom:6px">${hiddenCount} vergangene ausgeblendet</div>`:'';
   el.innerHTML=note+visible.map(s=>{
     const personen=getPersonen(s);
-    const info=getPostenInfo(s.postenName);
-    const minP=info.minPersonen||0, count=personen.length, ok=!minP||count>=minP;
-    const minRankI=info.mindestRang?rankIdx(info.mindestRang):-1;
+    const info=getPostenInfo(s.posten_name);
+    const minP=info.min_personen||0, count=personen.length, ok=!minP||count>=minP;
+    const minRankI=info.mindest_rang?rankIdx(info.mindest_rang):-1;
     const usedNames=new Set(personen.map(p=>p.name));
     const available=state.personen.filter(p=>{
       if(usedNames.has(p.name)) return false;
@@ -629,7 +627,7 @@ function renderSchichten(){
     const mapBtn=info.standort?`<a class="maps-link" href="${mapsUrl(info.standort)}" target="_blank" rel="noopener">🗺️</a>`:'';
     return`<div class="scard ${ok?'ok':'warn'}">
       <div class="scard-top">
-        <span class="scard-posten">${esc(s.postenName||'—')} ${mapBtn}</span>
+        <span class="scard-posten">${esc(s.posten_name||'—')} ${mapBtn}</span>
         ${reqBadge}
         <button class="ibtn" onclick="delSchicht('${esc(s.id)}')">✕</button>
       </div>
@@ -679,14 +677,14 @@ function renderPosten(){
   if(!state.posten.length){ el.innerHTML='<div class="empty"><div class="empty-ico">📋</div><div class="empty-txt">Noch keine Posten.</div></div>'; return; }
   el.innerHTML=state.posten.map(p=>{
     const mapLink=p.standort?`<a class="maps-link" href="${mapsUrl(p.standort)}" target="_blank" rel="noopener">🗺️ Navigation</a>`:'';
-    const hasSub=p.beschreibung||p.mindestRang||p.minPersonen||p.standort;
+    const hasSub=p.beschreibung||p.mindest_rang||p.min_personen||p.standort;
     return`<div class="list-item">
       <div style="flex:1;min-width:0">
         <div class="item-name">${esc(p.name)}</div>
         ${hasSub?`<div class="item-sub">
           ${p.beschreibung?`<span>${esc(p.beschreibung)}</span>`:''}
-          ${p.mindestRang?`<span>🎖 Min. ${esc(p.mindestRang)}</span>`:''}
-          ${p.minPersonen>0?`<span>👥 Min. ${p.minPersonen}</span>`:''}
+          ${p.mindest_rang?`<span>🎖 Min. ${esc(p.mindest_rang)}</span>`:''}
+          ${p.min_personen>0?`<span>👥 Min. ${p.min_personen}</span>`:''}
           ${p.standort?`<span style="font-size:.78rem;color:var(--fg3)">${esc(p.standort)}</span>${mapLink}`:''}
         </div>`:''}
       </div>
@@ -718,25 +716,25 @@ function renderAuPerson(el){
         <span class="au-name">${esc(p.name)}</span>${rufBadge}
       </div>
       ${p.rolle?`<div style="padding:4px 14px 0;font-size:.78rem;color:var(--fg2)">${esc(p.rolle)}</div>`:''}
-      <div class="au-body">${einsaetze.length?einsaetze.map(e=>`<div class="au-row"><span>${esc(e.postenName)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join(''):'<div style="color:var(--fg3);font-size:.875rem;padding:6px 0">Kein Einsatz</div>'}</div>
+      <div class="au-body">${einsaetze.length?einsaetze.map(e=>`<div class="au-row"><span>${esc(e.posten_name)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join(''):'<div style="color:var(--fg3);font-size:.875rem;padding:6px 0">Kein Einsatz</div>'}</div>
     </div>`;
   }
-  if(unassigned.length) html+=`<div class="au-card"><div class="au-head" style="border-left:4px solid var(--danger)"><span>⚠️</span><span class="au-name" style="color:var(--danger)">Nicht besetzt</span></div><div class="au-body">${unassigned.map(e=>`<div class="au-row"><span>${esc(e.postenName)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join('')}</div></div>`;
+  if(unassigned.length) html+=`<div class="au-card"><div class="au-head" style="border-left:4px solid var(--danger)"><span>⚠️</span><span class="au-name" style="color:var(--danger)">Nicht besetzt</span></div><div class="au-body">${unassigned.map(e=>`<div class="au-row"><span>${esc(e.posten_name)}</span><span style="color:var(--fg2);font-size:.8rem">${e.von||'?'}–${e.bis||'?'}</span></div>`).join('')}</div></div>`;
   el.innerHTML=html||'<div class="empty" style="grid-column:1/-1"><div class="empty-txt">Niemand eingeteilt.</div></div>';
 }
 function renderAuPosten(el){
   if(!state.schichten.length){ el.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📋</div><div class="empty-txt">Noch keine Schichten.</div></div>'; return; }
   const funkModus=getFunkModus();
   const byPosten={};
-  for(const s of state.schichten){ const k=s.postenName||'—'; if(!byPosten[k]) byPosten[k]=[]; byPosten[k].push(s); }
+  for(const s of state.schichten){ const k=s.posten_name||'—'; if(!byPosten[k]) byPosten[k]=[]; byPosten[k].push(s); }
   let html='';
   for(const [pn,sch] of Object.entries(byPosten)){
-    const info=getPostenInfo(pn); const minP=info.minPersonen||0;
+    const info=getPostenInfo(pn); const minP=info.min_personen||0;
     const rufBadge=(funkModus==='posten')?`<span class="au-rufname">📻 ${esc(pn)}</span>`:'';
     const mapLink=info.standort?`<a class="maps-link" href="${mapsUrl(info.standort)}" target="_blank" rel="noopener" style="margin-left:auto">🗺️ Nav</a>`:'';
     html+=`<div class="au-card">
       <div class="au-head"><span>📍</span><span class="au-name">${esc(pn)}</span>${rufBadge}
-        ${info.mindestRang?`<span style="font-size:.75rem;color:var(--fg2);margin-left:auto">Min. ${esc(info.mindestRang)}</span>`:''}${mapLink}
+        ${info.mindest_rang?`<span style="font-size:.75rem;color:var(--fg2);margin-left:auto">Min. ${esc(info.mindest_rang)}</span>`:''}${mapLink}
       </div>
       ${info.beschreibung?`<div style="padding:5px 14px 0;font-size:.78rem;color:var(--fg2)">${esc(info.beschreibung)}</div>`:''}
       <div class="au-body">${sch.map(s=>{
@@ -762,7 +760,7 @@ function renderAll(){
 // ── DB Writes ─────────────────────────────────────────────────────────────
 async function updateSchichtField(id,field,value){
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/schichten/${id}`).update({[field]:value});
+  await sb.from('schichten').update({[field]:value}).eq('id',id);
   setSyncDot(false);
 }
 async function addPersonToSchicht(id,sel){
@@ -772,26 +770,29 @@ async function addPersonToSchicht(id,sel){
   const person=state.personen.find(p=>p.name===name)||{};
   const col=person.color||rankColor(person.rank||'');
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/schichten/${id}`).update({personen:[...current,{name,color:col,rank:person.rank||''}]});
+  await sb.from('schichten').update({personen:[...current,{name,color:col,rank:person.rank||''}]}).eq('id',id);
   setSyncDot(false);
 }
 async function removePersonFromSchicht(id,name){
   const s=state.schichten.find(x=>x.id===id); if(!s) return;
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/schichten/${id}`).update({personen:getPersonen(s).filter(p=>p.name!==name)});
+  await sb.from('schichten').update({personen:getPersonen(s).filter(p=>p.name!==name)}).eq('id',id);
   setSyncDot(false);
 }
-async function delSchicht(id){ await db.ref(`${anlassPath()}/schichten/${id}`).remove(); }
-async function delPerson(id) { await db.ref(`${anlassPath()}/personen/${id}`).remove(); }
-async function delPosten(id) { await db.ref(`${anlassPath()}/posten/${id}`).remove(); }
+async function delSchicht(id){ setSyncDot(true); await sb.from('schichten').delete().eq('id',id); setSyncDot(false); }
+async function delPerson(id) { setSyncDot(true); await sb.from('personen').delete().eq('id',id);  setSyncDot(false); }
+async function delPosten(id) { setSyncDot(true); await sb.from('posten').delete().eq('id',id);    setSyncDot(false); }
 function delAnlass(id){
-  if(!db) return;
+  if(!sb) return;
   const a=state.anlaesse.find(x=>x.id===id);
   openModal('Anlass löschen',
     `<p style="color:var(--fg2);line-height:1.6">Anlass <strong>${esc(a?.name||id)}</strong> und alle zugehörigen Daten werden unwiderruflich gelöscht.</p>`,
     'Löschen', async()=>{
       closeModal(); setSyncDot(true);
-      await db.ref(`anlaesse/${id}`).remove();
+      await sb.from('schichten').delete().eq('anlass_id',id);
+      await sb.from('personen').delete().eq('anlass_id',id);
+      await sb.from('posten').delete().eq('anlass_id',id);
+      await sb.from('anlaesse').delete().eq('id',id);
       setSyncDot(false);
       if(state.anlassId===id) selectAnlass(null);
     });
@@ -844,7 +845,7 @@ function anlassFormHtml(a){
     <div class="fg"><label class="flabel">Datum</label>
       <input class="finput" type="date" id="inp-adata" value="${esc(a?.datum||todayStr())}"></div>
     <div class="fg"><label class="flabel">Rufname-Modus</label>
-      ${funkModusSelectHtml(a?.funkModus)}</div>`;
+      ${funkModusSelectHtml(a?.funk_modus)}</div>`;
 }
 function openAddAnlass(){ openModal('Neuen Anlass erstellen',anlassFormHtml(null),'Erstellen',saveAnlass); }
 function openEditAnlass(id){
@@ -854,7 +855,7 @@ function openEditAnlass(id){
     const datum=document.getElementById('inp-adata').value;
     const funkModus=document.getElementById('inp-funkmodus').value||'posten';
     if(!name||!datum) return;
-    setSyncDot(true); await db.ref(`anlaesse/${id}`).update({name,datum,funkModus}); setSyncDot(false); closeModal();
+    setSyncDot(true); await sb.from('anlaesse').update({name,datum,funk_modus:funkModus}).eq('id',id); setSyncDot(false); closeModal();
   });
 }
 async function saveAnlass(){
@@ -864,9 +865,9 @@ async function saveAnlass(){
   if(!name){ document.getElementById('inp-aname').focus(); return; }
   if(!datum){ document.getElementById('inp-adata').focus(); return; }
   setSyncDot(true);
-  const newRef = await db.ref('anlaesse').push({name,datum,funkModus,createdAt:Date.now()});
+  const {data,error} = await sb.from('anlaesse').insert({name,datum,funk_modus:funkModus}).select().single();
   setSyncDot(false); closeModal();
-  setTimeout(()=>selectAnlass(newRef.key),300);
+  if(!error && data) setTimeout(()=>selectAnlass(data.id),300);
 }
 
 // ── Copy Anlass ───────────────────────────────────────────────────────────
@@ -880,7 +881,7 @@ function openCopyAnlass(sourceId){
         <input class="finput" id="copy-aname" value="${esc(src.name)}" autocomplete="off"></div>
       <div class="fg"><label class="flabel">Datum</label>
         <input class="finput" type="date" id="copy-adata" value="${esc(src.datum)}"></div>
-      <div class="fg"><label class="flabel">Rufname-Modus</label>${funkModusSelectHtml(src.funkModus)}</div>
+      <div class="fg"><label class="flabel">Rufname-Modus</label>${funkModusSelectHtml(src.funk_modus)}</div>
     </div>
     <div class="step" id="copy-step-2">
       <div class="step-head">Schritt 2 von 2 · Was übernehmen?</div>
@@ -911,28 +912,23 @@ async function doCopy(sourceId,name,datum){
   const copySchichten=document.getElementById('chk-schichten').checked;
   const copyZuteilung=document.getElementById('chk-szuteilung').checked;
   setSyncDot(true);
-  const newRef=await db.ref('anlaesse').push({name,datum,funkModus,createdAt:Date.now()});
-  const newId=newRef.key;
+  const {data:newA,error:eA}=await sb.from('anlaesse').insert({name,datum,funk_modus:funkModus}).select().single();
+  if(eA||!newA){ setSyncDot(false); return; }
+  const newId=newA.id;
   if(copyPersonen){
-    const snap=await db.ref(`anlaesse/${sourceId}/personen`).once('value');
-    const items=snapToArr(snap);
-    for(const item of items){ const {id,...d}=item; await db.ref(`anlaesse/${newId}/personen`).push({...d,createdAt:Date.now()}); }
+    const {data:items}=await sb.from('personen').select('*').eq('anlass_id',sourceId);
+    if(items?.length) await sb.from('personen').insert(items.map(({id,...d})=>({...d,anlass_id:newId})));
   }
   if(copyPosten){
-    const snap=await db.ref(`anlaesse/${sourceId}/posten`).once('value');
-    const items=snapToArr(snap);
-    for(const item of items){ const {id,...d}=item; await db.ref(`anlaesse/${newId}/posten`).push({...d,createdAt:Date.now()}); }
+    const {data:items}=await sb.from('posten').select('*').eq('anlass_id',sourceId);
+    if(items?.length) await sb.from('posten').insert(items.map(({id,...d})=>({...d,anlass_id:newId})));
   }
   if(copySchichten){
-    const snap=await db.ref(`anlaesse/${sourceId}/schichten`).once('value');
-    const items=snapToArr(snap);
-    for(const item of items){
-      await db.ref(`anlaesse/${newId}/schichten`).push({
-        postenName:item.postenName,von:item.von,bis:item.bis,
-        personen:copyZuteilung?(item.personen||[]):[],
-        createdAt:Date.now()
-      });
-    }
+    const {data:items}=await sb.from('schichten').select('*').eq('anlass_id',sourceId);
+    if(items?.length) await sb.from('schichten').insert(items.map(({id,...d})=>({
+      anlass_id:newId, posten_name:d.posten_name, von:d.von, bis:d.bis,
+      personen:copyZuteilung?(d.personen||[]):[]
+    })));
   }
   setSyncDot(false); closeModal();
   setTimeout(()=>selectAnlass(newId),300);
@@ -959,7 +955,7 @@ async function saveSchicht(){
   const von=document.getElementById('inp-von').value, bis=document.getElementById('inp-bis').value;
   if(!name){ document.getElementById('inp-posten').focus(); return; }
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/schichten`).push({postenName:name,von,bis,personen:[],createdAt:Date.now()});
+  await sb.from('schichten').insert({anlass_id:state.anlassId,posten_name:name,von,bis,personen:[]});
   setSyncDot(false); closeModal();
 }
 
@@ -990,7 +986,7 @@ async function savePerson(){
   const rolle=(document.getElementById('inp-rolle')?.value||'').trim();
   const funkrufname=(document.getElementById('inp-funkruf')?.value||'').trim();
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/personen`).push({name,rank,rolle,funkrufname,color,createdAt:Date.now()});
+  await sb.from('personen').insert({anlass_id:state.anlassId,name,rank,rolle,funkrufname,color});
   setSyncDot(false); closeModal();
 }
 async function updatePerson(id){
@@ -1002,7 +998,7 @@ async function updatePerson(id){
   const rolle=(document.getElementById('inp-rolle')?.value||'').trim();
   const funkrufname=(document.getElementById('inp-funkruf')?.value||'').trim();
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/personen/${id}`).update({name,rank,rolle,funkrufname,color});
+  await sb.from('personen').update({name,rank,rolle,funkrufname,color}).eq('id',id);
   setSyncDot(false); closeModal();
 }
 
@@ -1020,10 +1016,10 @@ function openAddPosten(editId){
     <div class="fg"><label class="flabel">Mindestrang (optional)</label>
       <select class="fselect" id="inp-prank">
         <option value="">— keine Anforderung —</option>
-        ${RANKS.map(r=>`<option value="${r.short}"${existing?.mindestRang===r.short?' selected':''}>${r.short} – ${r.name}</option>`).join('')}
+        ${RANKS.map(r=>`<option value="${r.short}"${existing?.mindest_rang===r.short?' selected':''}>${r.short} – ${r.name}</option>`).join('')}
       </select></div>
     <div class="fg"><label class="flabel">Mindestanzahl Personen</label>
-      <input class="finput" type="number" id="inp-pmin" min="0" max="20" value="${existing?.minPersonen??1}"></div>`,
+      <input class="finput" type="number" id="inp-pmin" min="0" max="20" value="${existing?.min_personen??1}"></div>`,
     existing?'Speichern':'Hinzufügen',
     existing?()=>updatePosten(editId):savePosten);
 }
@@ -1032,10 +1028,10 @@ async function savePosten(){
   if(!name){ document.getElementById('inp-pname').focus(); return; }
   const beschreibung=(document.getElementById('inp-pbeschr').value||'').trim();
   const standort=(document.getElementById('inp-pstandort').value||'').trim();
-  const mindestRang=document.getElementById('inp-prank').value;
-  const minPersonen=parseInt(document.getElementById('inp-pmin').value)||0;
+  const mindest_rang=document.getElementById('inp-prank').value;
+  const min_personen=parseInt(document.getElementById('inp-pmin').value)||0;
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/posten`).push({name,beschreibung,standort,mindestRang,minPersonen,createdAt:Date.now()});
+  await sb.from('posten').insert({anlass_id:state.anlassId,name,beschreibung,standort,mindest_rang,min_personen});
   setSyncDot(false); closeModal();
 }
 async function updatePosten(id){
@@ -1043,10 +1039,10 @@ async function updatePosten(id){
   if(!name){ document.getElementById('inp-pname').focus(); return; }
   const beschreibung=(document.getElementById('inp-pbeschr').value||'').trim();
   const standort=(document.getElementById('inp-pstandort').value||'').trim();
-  const mindestRang=document.getElementById('inp-prank').value;
-  const minPersonen=parseInt(document.getElementById('inp-pmin').value)||0;
+  const mindest_rang=document.getElementById('inp-prank').value;
+  const min_personen=parseInt(document.getElementById('inp-pmin').value)||0;
   setSyncDot(true);
-  await db.ref(`${anlassPath()}/posten/${id}`).update({name,beschreibung,standort,mindestRang,minPersonen});
+  await sb.from('posten').update({name,beschreibung,standort,mindest_rang,min_personen}).eq('id',id);
   setSyncDot(false); closeModal();
 }
 </script>
